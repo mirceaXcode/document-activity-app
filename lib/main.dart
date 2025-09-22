@@ -62,7 +62,7 @@ class DocumentActivityState extends State<DocumentActivityScreen> {
       ).timeout(const Duration(seconds: 10), onTimeout: () {
         throw Exception('Connection timed out');
       });
-      debugPrint('Response status: ${response.statusCode}, body: ${response.body}');
+      debugPrint('Response received - Status: ${response.statusCode}, Full Body: ${response.body}, Headers: ${response.headers}');
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as List;
         setState(() {
@@ -82,13 +82,24 @@ class DocumentActivityState extends State<DocumentActivityScreen> {
             };
           }).toList();
         });
+      } else if (response.statusCode == 404 || response.statusCode == 433) {
+        setState(() {
+          _error = 'Invalid SessionID';
+        });
+        debugPrint('API returned invalid session error - Status: ${response.statusCode}, Full Body: ${response.body}, Headers: ${response.headers}');
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        setState(() {
+          _error = 'Invalid Token';
+        });
+        debugPrint('API returned authentication error - Status: ${response.statusCode}, Full Body: ${response.body}, Headers: ${response.headers}');
       } else {
         setState(() {
-          _error = 'Error: ${response.statusCode} - ${response.body}';
+          _error = 'API Error: Status ${response.statusCode} - ${response.body.isNotEmpty ? response.body : 'No additional details'}';
         });
+        debugPrint('API returned error - Status: ${response.statusCode}, Full Body: ${response.body}, Headers: ${response.headers}');
       }
     } catch (e) {
-      debugPrint('Exception: $e');
+      debugPrint('Exception during request: $e');
       setState(() {
         _error = 'Network error: $e';
       });
@@ -170,7 +181,7 @@ class DocumentActivityState extends State<DocumentActivityScreen> {
                         }, // Removed const from the map
                         children: [
                           TableRow(
-                            decoration: const BoxDecoration(color: Colors.grey), // Valid syntax
+                            decoration: const BoxDecoration(color: Colors.grey),
                             children: const [
                               Padding(
                                 padding: EdgeInsets.all(8.0),
