@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart'; // For date formatting
+import 'dart:io'; // For file operations
+import 'package:file_picker/file_picker.dart'; // For file picker
 
 void main() {
   runApp(const MyApp());
@@ -82,7 +84,7 @@ class DocumentActivityState extends State<DocumentActivityScreen> {
             };
           }).toList();
         });
-      } else if (response.statusCode == 404 || response.statusCode == 433) {
+      } else if (response.statusCode == 404) {
         setState(() {
           _error = 'Invalid SessionID';
         });
@@ -103,6 +105,51 @@ class DocumentActivityState extends State<DocumentActivityScreen> {
       setState(() {
         _error = 'Network error: $e';
       });
+    }
+  }
+
+  Future<void> _exportToCSV() async {
+    if (_activities.isEmpty) {
+      setState(() {
+        _error = 'No data to export';
+      });
+      return;
+    }
+
+    // Generate CSV content
+    final String csvHeaders = 'ApiName,StartTime,EndTime,ProcessTime,StatusCode,InstanceId\n';
+    final String csvRows = _activities.map((activity) {
+      return '${activity['apiName']},${activity['startTime']},${activity['endTime']},${activity['processTime']},${activity['statusCode']},${activity['instanceId']}';
+    }).join('\n');
+    final String csvContent = csvHeaders + csvRows;
+
+    // Use file picker to select save location
+    final String? outputPath = await FilePicker.platform.saveFile(
+      dialogTitle: 'Save CSV File',
+      fileName: 'document_activities.csv',
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+    );
+
+    if (outputPath == null) {
+      setState(() {
+        _error = 'Export cancelled';
+      });
+      return;
+    }
+
+    try {
+      final file = File(outputPath);
+      await file.writeAsString(csvContent);
+      setState(() {
+        _error = 'CSV exported successfully to $outputPath';
+      });
+      debugPrint('CSV exported to: $outputPath');
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to export CSV: $e';
+      });
+      debugPrint('CSV export failed: $e');
     }
   }
 
@@ -156,7 +203,13 @@ class DocumentActivityState extends State<DocumentActivityScreen> {
               maxLines: 2, // Allow multiple lines for token
             ),
             const SizedBox(height: 20),
-            ElevatedButton(onPressed: _fetchActivities, child: const Text('Fetch Activities')),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton(onPressed: _fetchActivities, child: const Text('Fetch Activities')),
+                ElevatedButton(onPressed: _exportToCSV, child: const Text('Export to CSV')),
+              ],
+            ),
             const SizedBox(height: 20),
             if (_error.isNotEmpty)
               Text(_error, style: const TextStyle(color: Colors.red)),
